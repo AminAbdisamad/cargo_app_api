@@ -1,88 +1,60 @@
 from typing import Optional
-from fastapi import FastAPI,Query,Path
-from pydantic import BaseModel
-
-
+from fastapi import Depends, FastAPI, Header, HTTPException
 
 app = FastAPI()
 
-# ? Base Item Structure
-class Item(BaseModel):
-    name:str
-    description:str
-    price:float
-    tax : Optional[float] = None
+#? Function Dependencies
+
+async def common_parameters(q: Optional[str] = None, skip: int = 0, limit: int = 100):
+    return {"q": q, "skip": skip, "limit": limit}
+
+@app.get("/items/")
+async def read_items(commons: dict = Depends(common_parameters)):
+    return commons
+
+@app.get("/users/")
+async def read_users(commons: dict = Depends(common_parameters)):
+    return commons
+
+# ? Class Dependencies
+fake_items_db = [{"item_name": "Foo"}, {"item_name": "Bar"}, {"item_name": "Baz"}]
+class CommonQueries:
+    def __init__(self,q:Optional[str]=None,skip:int = 0, limit:int = 10):
+        self.q = q
+        self.skip = skip 
+        self.limit = limit
+
+@app.get("/get/items")    
+async def get_items(commons:CommonQueries = Depends(CommonQueries)):
+    data:dict = {}
+    if commons.q:
+        data.update({"q":commons.q})
+    items = fake_items_db[commons.skip:commons.skip + commons.limit]
+    data.update({"items":items})
+    return data
+
+@app.get("get/itemz/")
+async def get_itemz(commons: CommonQueries = Depends()):
+    response:dict = {}
+    if commons.q:
+        response.update({"q": commons.q})
+    items = fake_items_db[commons.skip : commons.skip + commons.limit]
+    response.update({"items": items})
+    return response
 
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
-# ? Query validations
-
-@app.get("/items")
-async def items(q:Optional[str] = Query(None,min_length=2, max_length=20,regex="^fixedquery$",title="Query string",
-        description="Query string for the items to search in the database that have a good match",deprecated=True)):
-    # Even though q is optional if you try 
-    # use it max length should be 10 
-    items = {"item_id":"bar"}
-    if q:
-        items.update({"q":q})
-    return items
+async def verify_token(x_token: str = Header(...)):
+    if x_token != "fake-super-secret-token":
+        raise HTTPException(status_code=400, detail="X-Token header invalid")
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id:int, q: Optional[str] = None):
-    return {"item_id": item_id, "q": q}
+async def verify_key(x_key: str = Header(...)):
+    if x_key != "fake-super-secret-key":
+        raise HTTPException(status_code=400, detail="X-Key header invalid")
+    return x_key
 
 
-fake_items:list[dict] = [{"item_name":"foo"},{"item_name":"bar"},{"item_name":"baz"}]
 
-@app.get("/get/items")
-def get_items(skip:int =0, limit:int=10):
-    return fake_items[skip:skip+limit]
-
-# ? Query parameter list / multiple values
-@app.get("/it/")
-async def read_items(q: Optional[list[str]] = Query(None)):
-    query_items = {"q": q}
-    return query_items
-
-# ? Query parameter list / multiple values with defaults
-@app.get("/it/")
-async def read_it(q: list[str] = Query(["foo", "bar"])):
-    query_items = {"q": q}
-    return query_items
-
-
-#? Post Method
-@app.post("/item")
-def save_items(item:Item):
-    items = item.dict()
-    if item.tax:
-        price_with_tax = item.price + item.tax
-        items.update({"total_price":price_with_tax})
-    return items
-
-# ? Put Method 
-@app.put("/items/{item_id}")
-def update_item(item_id:int = Path(...,title="ID of the item",ge=0,le=100), item:Optional[Item]=None, q:Optional[str] = None):
-    result:dict = {"item_id":item_id}
-    if q:
-        result.update({"q":q})
-    if item:
-        result.update({"item":item})
-    return result
-
-class CustomerAddress(BaseModel):
-    country:str
-    city:str
-    street:str
-    zipcode:int
-class Customer(BaseModel):
-    name:str
-    email:str
-    address:CustomerAddress
-    
-    
-
+@app.get("/auth/", dependencies=[Depends(verify_token), Depends(verify_key)])
+async def auth():
+    return [{"item": "Foo"}, {"item": "Bar"}]
