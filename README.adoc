@@ -1,2 +1,2 @@
-=== Cargo Application Backend API Built with Fastapi
+=== Cargo App Backend 
 
