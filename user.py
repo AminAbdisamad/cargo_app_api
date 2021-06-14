@@ -2,7 +2,7 @@ from typing import Optional
 from fastapi import FastAPI
 from pydantic import BaseModel, EmailStr
 
-
+#app defination
 app = FastAPI()
 
 class UserBase(BaseModel):
